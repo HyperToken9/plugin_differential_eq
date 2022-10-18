@@ -6,47 +6,37 @@ def indent(text, amount=4, ch=' '):
 
 
 class Node:
-
-    def __init__(self, voltage=0, links=None):
+    # A node connects to A Singular Terminal of an Element
+    # And can connect to multiple other nodes
+    def __init__(self, parent_element, voltage=0, links=None):
         # Voltage level at the node
         self.V = voltage
 
-        # Circuit elements the node links
-        self.links_to = links
-        if links is None:
-            self.links_to = []
+        self.parent = parent_element
 
-    def add(self, element):
-        if element not in self.links_to:
-            self.links_to.append(element)
+        self.nodes = links
+        if links is None:
+            self.nodes = []
+
+    def add(self, node):
+        if node not in self.nodes:
+            self.nodes.append(node)
 
     def __str__(self):
-        return f"ID: {hex(id(self))}\nVoltage: {self.V}\nLinks To: {self.links_to}\n"
+        # return f"ID: {hex(id(self))}\nVoltage: {self.V}\nLinks To: {[i.parent for i in self.nodes]}\n"
+        return f"Voltage: {self.V}\nLinks To: {[i.parent for i in self.nodes]}\n"
 
 
 class CircuitElement:
     def __init__(self, voltage_a=0, voltage_b=0):
-        self.A = Node(voltage_a)
-        self.B = Node(voltage_b)
+        self.A = Node(self, voltage_a)
+        self.B = Node(self, voltage_b)
 
     def connect(self, other):
-        print("Self",[self], "Other", [other])
-
-        for e in other.A.links_to:
-            if e is other: continue
-            self.B.add(e)
-
-        self.B.add(other)
-        print("B Cons:",self.B.links_to)
-
-        for e in self.B.links_to:
-            if e is other: continue
-            other.A.add(e)
-
-        other.A.add(self)
-        print("A Cons:", other.A.links_to)
-
-
+        for parent_node in [self.B] + self.B.nodes:
+            for child_node in [other.A] + other.A.nodes:
+                parent_node.add(child_node)
+                child_node.add(parent_node)
 
     def get_voltage(self):
         return self.B.V - self.A.V
@@ -98,13 +88,16 @@ def main():
 
     v1.connect(r1)
     v1.connect(r2)
-    # r2.connect(r3)
-    # r3.connect(v1)
+    v1.connect(r3)
+    r1.connect(v1)
+    r2.connect(v1)
+    r3.connect(v1)
+
 
     print(v1)
     print(r1)
     print(r2)
-    # print(r3)
+    print(r3)
 
     # v1.simultate()
     # print(f"{r3.get_current()}")
