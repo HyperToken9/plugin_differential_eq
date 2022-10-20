@@ -17,6 +17,30 @@ class Potential:
         return self.volts - other.volts
 
 
+class Current:
+    def __init__(self):
+        self.amps = 0
+        self.pair = None
+
+    def set_amps(self, i):
+        self.amps = i
+        self.sync_pair()
+
+    def get_amps(self):
+        return self.amps
+
+    def set_pair(self, other):
+        self.pair = other
+        other.pair = self
+
+    def sync_pair(self):
+        if self.pair is not None:
+            self.pair.amps = -1 * self.amps
+
+    def __str__(self):
+        return str(self.amps)
+
+
 class Node:
     # A node connects to A Singular Terminal of an Element
     # And can connect to multiple other nodes
@@ -25,7 +49,7 @@ class Node:
         self.V = Potential(voltage)
 
         # Current Flowing Into Element
-        self.I = 0
+        self.I = Current()
 
         self.parent = parent_element
 
@@ -33,23 +57,24 @@ class Node:
         if links is None:
             self.nodes = []
 
+    def propagate_current(self, i):
+        self.set_current(i)
+        num_children = len(self.nodes)
+        for node in self.nodes:
+            node.parent.A.propagate_current(-1 * i / num_children)
+
+    def link_nodes(self, other):
+        self.I.set_pair(other.I)
+
     def add(self, node):
         if node not in self.nodes:
             self.nodes.append(node)
 
-    def propagate_potential(self):
-        for node in self.nodes:
-            node.V = self.V
-
-    def propagate_current(self):
-        for node in self.nodes:
-            node.parent.set_currents()
-
     def get_current(self):
-        return self.I
+        return self.I.get_amps()
 
     def set_current(self, i):
-        self.I = i
+        self.I.set_amps(i)
 
     def get_voltage(self):
         return self.V.volts
@@ -57,14 +82,22 @@ class Node:
     def set_voltage(self, v):
         self.V.volts = v
 
+    def disconnect(self):
+        self.parent = None
+
+    def reconnect(self, element):
+        self.parent = element
+
     def __str__(self):
         # return f"ID: {hex(id(self))}\nVoltage: {self.V}\nLinks To: {[i.parent for i in self.nodes]}\n"
         return f"Voltage: {self.V}\nCurrent: {self.I}\nLinks To: {[i.parent for i in self.nodes]}\n"
+
 
 class CircuitElement:
     def __init__(self, voltage_a=0, voltage_b=0):
         self.A = Node(self, voltage_a)
         self.B = Node(self, voltage_b)
+        self.A.link_nodes(self.B)
 
     def connect(self, other):
         for parent_node in [self.B] + self.B.nodes:
@@ -77,15 +110,30 @@ class CircuitElement:
 
     def simulate(self):
         print("Beginning Simulation")
-        self.A.propagate_potential()
+        self.B.disconnect()
+        self.A.propagate_current(5)
+        # print(f"{self.is_balanced()}")
 
-        self.A.propagate_current()
+    def is_balanced(self):
+        potential = self.A.get_voltage()
 
-    def set_currents(self):
-        return
+        # will not work for multiple children nodes
+        next_node = self.A.nodes[0]
+        next_element = next_node.parent
 
-    def drop_voltage(self):
-        return
+        while next_element != self:
+            potential -= next_element.voltage_drop()
+
+            # will not work for multiple children nodes
+            next_node = next_node.nodes[0]
+            next_element = next_node.parent
+            # print(next_element)
+            # return "F"
+
+        return abs(potential - self.B.get_voltage())
+
+    def voltage_drop(self):
+        return -1 * self.get_voltage()
 
     def __str__(self):
         return "Node A:\n" + indent(self.A.__str__()) + "Node B:\n" + indent(self.B.__str__())
@@ -100,15 +148,8 @@ class IdealResistor(CircuitElement):
         super().__init__()
         self.R = resistance
 
-    def set_currents(self):
-        mag_i = self.get_voltage()/ self.R
-        self.A.set_current(mag_i)
-        self.B.set_current(-1 * mag_i)
-        self.drop_voltage()
-
-    def drop_voltage(self):
-        # print("Voltage Drop: ", self.A.get_current() * self.R)
-        self.A.set_voltage(self.B.get_voltage() - self.A.get_current() * self.R)
+    def voltage_drop(self):
+        return self.R * self.A.get_current()
 
     def __str__(self):
         return f"Resistance: {self.R}\nID: {hex(id(self))}\n" + super().__str__()
@@ -138,15 +179,16 @@ def main():
 
     v1.connect(r1)
     r1.connect(r2)
-    r2.connect(r3)
-    r3.connect(v1)
+    r2.connect(v1)
+    # r2.connect(r3)
+    # r3.connect(v1)
 
     v1.simulate()
 
     print(v1)
     print(r1)
     print(r2)
-    print(r3)
+    # print(r3)
 
     # print(f"{r3.get_current()}")
 
