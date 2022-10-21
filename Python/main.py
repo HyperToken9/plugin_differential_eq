@@ -60,8 +60,16 @@ class Node:
     def propagate_current(self, i):
         self.set_current(i)
         num_children = len(self.nodes)
+
+        self.other_node().disconnect()
+
         for node in self.nodes:
-            node.parent.A.propagate_current(-1 * i / num_children)
+
+            if node.parent is None or node.other_node().parent is None:
+                continue
+            node.other_node().propagate_current( i / num_children)
+
+        self.other_node().reconnect(self.parent)
 
     def link_nodes(self, other):
         self.I.set_pair(other.I)
@@ -82,11 +90,20 @@ class Node:
     def set_voltage(self, v):
         self.V.volts = v
 
+    def other_node(self):
+        for node in self.parent.get_nodes():
+            if node is not self:
+                return node
     def disconnect(self):
         self.parent = None
 
-    def reconnect(self, element):
-        self.parent = element
+    def is_disconnected(self):
+        if self.parent is None:
+            return True
+        return False
+
+    def reconnect(self, parent):
+        self.parent = parent
 
     def __str__(self):
         # return f"ID: {hex(id(self))}\nVoltage: {self.V}\nLinks To: {[i.parent for i in self.nodes]}\n"
@@ -110,9 +127,10 @@ class CircuitElement:
 
     def simulate(self):
         print("Beginning Simulation")
-        self.B.disconnect()
-        self.A.propagate_current(5)
-        # print(f"{self.is_balanced()}")
+        # self.B.disconnect()
+        self.A.propagate_current(9)
+        # self.B.reconnect(self)
+        print(f"{self.is_balanced()= }")
 
     def is_balanced(self):
         potential = self.A.get_voltage()
@@ -130,10 +148,13 @@ class CircuitElement:
             # print(next_element)
             # return "F"
 
-        return abs(potential - self.B.get_voltage())
+        return potential - self.B.get_voltage()
 
     def voltage_drop(self):
         return -1 * self.get_voltage()
+
+    def get_nodes(self):
+        return [self.A, self.B]
 
     def __str__(self):
         return "Node A:\n" + indent(self.A.__str__()) + "Node B:\n" + indent(self.B.__str__())
@@ -177,11 +198,20 @@ def main():
     r2 = IdealResistor(20)
     r3 = IdealResistor(30)
 
+    # Single Resistance
+    # v1.connect(r1)
+    # r1.connect(v1)
+
+    # Double Series Resistance
+    # v1.connect(r1)
+    # r1.connect(r2)
+    # r2.connect(v1)
+
+    # Double Parallel
     v1.connect(r1)
-    r1.connect(r2)
+    v1.connect(r2)
+    r1.connect(v1)
     r2.connect(v1)
-    # r2.connect(r3)
-    # r3.connect(v1)
 
     v1.simulate()
 
