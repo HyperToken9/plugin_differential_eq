@@ -59,20 +59,28 @@ class Node:
 
     def propagate_current(self, i):
         self.set_current(i)
-        num_children = len(self.nodes)
-
+        # print(1,self)
         self.other_node().disconnect()
 
         for node in self.nodes:
-
             if node.parent is None or node.other_node().parent is None:
                 continue
-            node.other_node().propagate_current( i / num_children)
+            node.other_node().propagate_current( i / self.num_children())
 
         self.other_node().reconnect(self.parent)
 
     def link_nodes(self, other):
         self.I.set_pair(other.I)
+
+    def num_children(self):
+        n = 0
+        linked_to = [i.parent for i in self.nodes]
+        for element in linked_to:
+            if element is not None:
+                n+=1
+        print(linked_to)
+        print('N', n)
+        return n
 
     def add(self, node):
         if node not in self.nodes:
