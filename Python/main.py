@@ -44,7 +44,7 @@ class Current:
 class Node:
     # A node connects to A Singular Terminal of an Element
     # And can connect to multiple other nodes
-    def __init__(self, parent_element, voltage=0, links=None):
+    def __init__(self, parent_element, voltage=0, id = 0, links=None):
         # Voltage level at the node
         self.V = Potential(voltage)
 
@@ -53,38 +53,38 @@ class Node:
 
         self.parent = parent_element
 
+        self.id = id
+
         self.nodes = links
+
         if links is None:
-            self.nodes = []
+            self.nodes = {}
 
-    def propagate_current(self, i):
-        self.set_current(i)
         # print(1,self)
-        self.other_node().disconnect()
+        # self.other_node().disconnect()
+        #
+        # for node, split in self.nodes.items():
+        #     if node.parent is None or node.other_node().parent is None:
+        #         continue
+        #     node.other_node().propagate_current( i * split)
+        #
+        # self.other_node().reconnect(self.parent)
 
-        for node in self.nodes:
-            if node.parent is None or node.other_node().parent is None:
-                continue
-            node.other_node().propagate_current( i / self.num_children())
+    # def set_children(self):
+    #     children  = {}
+    #
+    #     for
 
-        self.other_node().reconnect(self.parent)
+
 
     def link_nodes(self, other):
         self.I.set_pair(other.I)
 
-    def num_children(self):
-        n = 0
-        linked_to = [i.parent for i in self.nodes]
-        for element in linked_to:
-            if element is not None:
-                n+=1
-        print(linked_to)
-        print('N', n)
-        return n
-
     def add(self, node):
-        if node not in self.nodes:
-            self.nodes.append(node)
+        if node not in self.nodes.keys() and self.id != node.id:
+            print(f"Connecting {self.id} to {node.id}")
+
+            self.nodes[node] = 1
 
     def get_current(self):
         return self.I.get_amps()
@@ -102,6 +102,7 @@ class Node:
         for node in self.parent.get_nodes():
             if node is not self:
                 return node
+
     def disconnect(self):
         self.parent = None
 
@@ -115,43 +116,79 @@ class Node:
 
     def __str__(self):
         # return f"ID: {hex(id(self))}\nVoltage: {self.V}\nLinks To: {[i.parent for i in self.nodes]}\n"
-        return f"Voltage: {self.V}\nCurrent: {self.I}\nLinks To: {[i.parent for i in self.nodes]}\n"
+        return f"Voltage: {self.V}\nCurrent: {self.I}\nLinks To: {[(key.parent, value) for key, value in self.nodes.items()]}\n"
+
+    def __repr__(self):
+        return f"{[self.parent]}"
 
 
 class CircuitElement:
     def __init__(self, voltage_a=0, voltage_b=0):
-        self.A = Node(self, voltage_a)
-        self.B = Node(self, voltage_b)
+        self.A = Node(self, voltage_a, 0)
+        self.B = Node(self, voltage_b, 1)
         self.A.link_nodes(self.B)
 
     def connect(self, other):
-        for parent_node in [self.B] + self.B.nodes:
-            for child_node in [other.A] + other.A.nodes:
+        for parent_node in [self.B] + list(self.B.nodes.keys()):
+            for child_node in [other.A] + list(other.A.nodes.keys()):
                 parent_node.add(child_node)
                 child_node.add(parent_node)
 
     def get_voltage(self):
         return self.B.V - self.A.V
 
+    def propagate_current(self, current):
+        # self.set_current(i)
+
+        visited_elements = []
+
+        # Node along with current
+        to_visit = [(self, current)] # (Node, current)
+
+        while len(to_visit) != 0:
+            # print(f"{to_visit = }")
+            this_element, this_i = to_visit.pop(0)
+
+            for next_node, next_i in this_element.A.nodes.items():
+                # print("Before: ",[next_element])
+
+                next_element = next_node.parent
+
+                if next_element in visited_elements:
+                    continue
+
+                # if next_element in [i[0] for i in to_visit]:
+                #     continue
+
+                # print("After: ",[next_element])
+
+                to_visit.append((next_element, this_i * next_i))
+
+            prev_current = this_element.A.get_current()
+            this_element.A.set_current(this_i + prev_current)
+
+            visited_elements.append(this_element)
+
+
     def simulate(self):
         print("Beginning Simulation")
         # self.B.disconnect()
-        self.A.propagate_current(9)
+        self.propagate_current(9)
         # self.B.reconnect(self)
-        print(f"{self.is_balanced()= }")
+        # print(f"{self.is_balanced()= }")
 
     def is_balanced(self):
         potential = self.A.get_voltage()
 
         # will not work for multiple children nodes
-        next_node = self.A.nodes[0]
+        next_node = list(self.A.nodes.keys())[0]
         next_element = next_node.parent
 
         while next_element != self:
             potential -= next_element.voltage_drop()
 
             # will not work for multiple children nodes
-            next_node = next_node.nodes[0]
+            next_node = list(next_node.nodes.keys())[0]
             next_element = next_node.parent
             # print(next_element)
             # return "F"
@@ -216,17 +253,25 @@ def main():
     # r2.connect(v1)
 
     # Double Parallel
+    # v1.connect(r1)
+    # v1.connect(r2)
+    # r1.connect(v1)
+    # r2.connect(v1)
+
+    # 2 Parallel + 1 Series
+
     v1.connect(r1)
     v1.connect(r2)
-    r1.connect(v1)
-    r2.connect(v1)
+    r1.connect(r3)
+    r2.connect(r3)
+    r3.connect(v1)
 
     v1.simulate()
 
     print(v1)
     print(r1)
     print(r2)
-    # print(r3)
+    print(r3)
 
     # print(f"{r3.get_current()}")
 
